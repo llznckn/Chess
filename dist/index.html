@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#3c3448" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <title>国际象棋 · Chess</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <script>
+    // PWA:注册 Service Worker(仅 https/localhost 生效,file:// 自动跳过)
+    if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+      });
+    }
+  </script>
+</head>
+<body>
+
+  <!-- ===================== 开始菜单 ===================== -->
+  <div id="menu" class="menu">
+    <div class="menu-card">
+      <div class="brand-big">♟ 国际象棋</div>
+      <p class="menu-sub">选择对战模式与难度，开始你的对局</p>
+
+      <div class="menu-group">
+        <div class="menu-label">对战模式</div>
+        <div class="seg" id="menuMode">
+          <button data-mode="pvp" class="seg-btn">本地双人</button>
+          <button data-mode="pvai" class="seg-btn active">人机对战</button>
+          <button data-mode="aivai" class="seg-btn">AI 斗蛐蛐</button>
+        </div>
+      </div>
+
+      <div class="menu-group" id="grpColor">
+        <div class="menu-label">你的执子</div>
+        <div class="seg" id="menuColor">
+          <button data-color="w" class="seg-btn active">白方（先手）</button>
+          <button data-color="b" class="seg-btn">黑方（后手）</button>
+        </div>
+      </div>
+
+      <div class="menu-group hidden" id="grpSubmode">
+        <div class="menu-label">对战方式</div>
+        <div class="seg" id="menuSubmode">
+          <button data-submode="practice" class="seg-btn active">练习模式</button>
+          <button data-submode="rating" class="seg-btn">评分模式</button>
+        </div>
+      </div>
+
+      <div class="menu-group" id="grpClock">
+        <div class="menu-label">对局限时</div>
+        <div class="seg" id="menuClock">
+          <button data-clock="0" class="seg-btn active">不限时</button>
+          <button data-clock="5" class="seg-btn">5 分钟</button>
+          <button data-clock="10" class="seg-btn">10 分钟</button>
+          <button data-clock="15" class="seg-btn">15 分钟</button>
+        </div>
+        <p class="menu-note" id="clockNote">限时模式下超时判负；人机对局只有你走棋时倒计时（AI 思考不计入你的时间）。</p>
+      </div>
+
+      <div class="menu-group hidden" id="grpDiff">
+        <div class="menu-label" id="diffLabel">AI 难度 <span class="diff-num" id="diffVal">5</span><span class="diff-total"> / 10</span></div>
+        <input type="range" id="menuDiff" min="1" max="10" step="1" value="5" class="menu-range">
+        <div class="range-hint"><span>轻松</span><span>大师</span></div>
+        <p class="menu-note hidden" id="ratingNote">评分模式：无提示、无悔棋。对局结束后将根据你的表现评定段位，段位不会超过你选择的 AI 段位，表现太差可能只有「无段位」。</p>
+      </div>
+
+      <div class="menu-group hidden" id="grpDiffAI">
+        <div class="menu-label">白方 AI 难度 <span class="diff-num" id="diffWVal">5</span><span class="diff-total"> / 10</span></div>
+        <input type="range" id="menuDiffW" min="1" max="10" step="1" value="5" class="menu-range">
+        <div class="range-hint"><span>轻松</span><span>大师</span></div>
+        <div class="menu-label" style="margin-top:12px">黑方 AI 难度 <span class="diff-num" id="diffBVal">5</span><span class="diff-total"> / 10</span></div>
+        <input type="range" id="menuDiffB" min="1" max="10" step="1" value="5" class="menu-range">
+        <div class="range-hint"><span>轻松</span><span>大师</span></div>
+      </div>
+
+      <div id="menuSelect">
+        <button id="tacticsBtn" class="btn ghost big" style="width:100%;margin-bottom:8px">🎯 战术训练</button>
+        <button id="statsBtn" class="btn ghost big" style="width:100%">📊 我的战绩</button>
+        <button id="continueBtn" class="btn primary big hidden">继续上局</button>
+        <button id="startBtn" class="btn primary big">开始游戏</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== 游戏主体 ===================== -->
+  <div id="app" class="hidden">
+    <header class="topbar">
+      <div class="brand"><span class="logo">♟</span><h1>国际象棋</h1></div>
+      <div class="controls">
+        <button id="newGame" class="btn primary">新对局</button>
+        <button id="undo" class="btn">悔棋</button>
+        <button id="hint" class="btn">提示</button>
+        <button id="flip" class="btn">翻转棋盘</button>
+        <button id="replay" class="btn">回放</button>
+        <button id="resignBtn" class="btn hidden">投降</button>
+        <button id="aiCancelBtn" class="btn hidden">取消</button>
+        <button id="aivaiToggle" class="btn hidden">暂停</button>
+        <button id="backMenu" class="btn ghost">返回菜单</button>
+        <button id="settings" class="btn ghost">设置</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="board-wrap">
+        <div id="clockBar" class="clock-bar hidden">
+          <div class="clock-cell w" id="clockCellW"><span class="clock-name">♔ 白方</span><span class="clock-time" id="clockW">10:00</span></div>
+          <div class="clock-cell b" id="clockCellB"><span class="clock-name">♚ 黑方</span><span class="clock-time" id="clockB">10:00</span></div>
+        </div>
+        <div id="board" class="board"></div>
+        <p id="status" class="status"></p>
+        <div id="pieceInfoPopup" class="piece-info-popup hidden" role="dialog" aria-label="棋子信息"></div>
+      </section>
+
+      <aside class="panel">
+        <div class="card turn-card">
+          <div class="turn-dot" id="turnDot"></div>
+          <div>
+            <div class="turn-title" id="turnTitle">白方走棋</div>
+            <div class="turn-sub" id="modeLabel"></div>
+          </div>
+        </div>
+
+        <div class="card captured-card" id="capturedCard">
+          <div class="cap-row"><span class="cap-label">黑方吃子</span><span class="cap-pieces" id="capWhite"></span></div>
+          <div class="cap-row"><span class="cap-label">白方吃子</span><span class="cap-pieces" id="capBlack"></span></div>
+          <div class="advantage" id="advantage"></div>
+        </div>
+
+        <div class="card analysis-card" id="analysisCard">
+          <div class="card-title">局势分析</div>
+          <div class="ana-row">
+            <span class="ana-side w">♔ 白方</span>
+            <div class="ana-bar"><div class="ana-fill w" id="anaFillW"></div></div>
+            <span class="ana-pct" id="anaPctW">50%</span>
+          </div>
+          <div class="ana-row">
+            <span class="ana-side b">♚ 黑方</span>
+            <div class="ana-bar"><div class="ana-fill b" id="anaFillB"></div></div>
+            <span class="ana-pct" id="anaPctB">50%</span>
+          </div>
+          <div class="ana-adv" id="anaAdv">子力均衡</div>
+        </div>
+
+        <div class="card moves-card">
+          <div class="card-title">
+            <span>走子记录</span>
+            <span class="export-btns">
+              <button type="button" class="mini-btn" id="btnPgn" title="复制 PGN">PGN</button>
+              <button type="button" class="mini-btn" id="btnPgnDl" title="下载 .pgn 文件">下载</button>
+              <button type="button" class="mini-btn" id="btnFen" title="复制 FEN">FEN</button>
+            </span>
+          </div>
+          <div class="movelist" id="movelist"></div>
+        </div>
+
+        <div class="card help-card">
+          <div class="card-title">新手小贴士</div>
+          <ul>
+            <li>点击棋子会高亮<strong>所有可走位置</strong>（圆点为普通走法，圆环为吃子）。</li>
+            <li>被将军时，<strong>王会被标红</strong>。</li>
+            <li>卡住了就点<strong>「提示」</strong>，会给你推荐一步。</li>
+            <li>所有提示都可在<strong>「设置」</strong>里开关。</li>
+          </ul>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <!-- ===================== 设置弹窗 ===================== -->
+  <div id="settingsModal" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-head"><h2>设置 · 提示开关</h2><button class="x" data-close="settingsModal">×</button></div>
+      <div class="setting-list" id="settingList">
+        <label class="setting"><input type="checkbox" data-setting="showLegalDots"><span>显示可走位置提示（圆点 / 圆环）</span></label>
+        <label class="setting"><input type="checkbox" data-setting="highlightCaptures"><span>高亮「可被吃掉的敌方棋子」</span></label>
+        <label class="setting"><input type="checkbox" data-setting="highlightLastMove"><span>高亮上一步</span></label>
+        <label class="setting"><input type="checkbox" data-setting="highlightCheck"><span>高亮被将军的王</span></label>
+        <label class="setting"><input type="checkbox" data-setting="showCoordinates"><span>显示坐标（a–h，1–8）</span></label>
+        <label class="setting"><input type="checkbox" data-setting="showCaptured"><span>显示被吃掉的棋子</span></label>
+        <label class="setting"><input type="checkbox" data-setting="showAdvantage"><span>显示子力优势</span></label>
+        <label class="setting"><input type="checkbox" data-setting="showAnalysis"><span>显示局势分析（双方胜率）</span></label>
+        <label class="setting"><input type="checkbox" data-setting="showMoveList"><span>显示走子记录</span></label>
+        <label class="setting"><input type="checkbox" data-setting="showPieceInfo"><span>显示棋子信息卡</span></label>
+        <label class="setting"><input type="checkbox" data-setting="smoothMove"><span>丝滑走子动画</span></label>
+        <label class="setting"><input type="checkbox" data-setting="sound"><span>走子音效</span></label>
+        <div class="setting setting-range" style="align-items:flex-start;flex-direction:column;gap:8px">
+          <label>界面风格</label>
+          <div class="seg" id="themeSeg" style="width:100%">
+            <button type="button" class="seg-btn" data-theme="classic">经典</button>
+            <button type="button" class="seg-btn" data-theme="dark">暗夜</button>
+            <button type="button" class="seg-btn" data-theme="neon">霓虹</button>
+            <button type="button" class="seg-btn" data-theme="royal">皇室紫</button>
+          </div>
+        </div>
+        <div class="setting setting-range">
+          <label for="aiDelayRange">AI 落子间隔（至少 1 秒）</label>
+          <input type="range" id="aiDelayRange" min="1000" max="4000" step="100" value="1500">
+          <span class="range-val"><span id="aiDelayVal">1500</span> ms</span>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" id="resetSettings">恢复默认</button>
+        <button class="btn primary" data-close="settingsModal">完成</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== 升变弹窗 ===================== -->
+  <div id="promoModal" class="modal hidden">
+    <div class="modal-box small">
+      <div class="modal-head"><h2>兵升变</h2></div>
+      <p class="promo-tip">兵到达底线，选择要变成的棋子：</p>
+      <div class="promo-choices" id="promoChoices"></div>
+    </div>
+  </div>
+
+  <!-- ===================== 评分模式：对局评价弹窗 ===================== -->
+  <div id="ratingModal" class="modal hidden">
+    <div class="modal-box small">
+      <div class="modal-head"><h2>对局评价</h2><button class="x" data-close="ratingModal">×</button></div>
+      <div class="rating-body" id="ratingBody"></div>
+      <div class="modal-foot">
+        <button class="btn primary" data-close="ratingModal">好的</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== 练习模式：着法质量报告 ===================== -->
+  <div id="qualityModal" class="modal hidden">
+    <div class="modal-box small">
+      <div class="modal-head"><h2>着法质量报告</h2><button class="x" data-close="qualityModal">×</button></div>
+      <div class="quality-body" id="qualityBody"></div>
+      <div class="modal-foot">
+        <button class="btn primary" data-close="qualityModal">好的</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== 对局回放（底部浮条，不挡棋盘） ===================== -->
+  <div id="replayModal" class="modal hidden">
+    <div class="modal-box replay-box">
+      <div class="modal-head"><h2>对局回放</h2><button class="x" id="replayCloseX">×</button></div>
+      <div class="replay-body">
+        <div class="replay-ctrl">
+          <button type="button" class="btn" id="replayStart" title="回到开头">⏮</button>
+          <button type="button" class="btn" id="replayPrev">◀</button>
+          <input type="range" id="replaySlider" min="0" max="0" value="0" class="menu-range">
+          <button type="button" class="btn" id="replayNext">▶</button>
+          <button type="button" class="btn primary" id="replayPlay">播放</button>
+          <select id="replaySpeed" class="replay-speed" title="播放速度">
+            <option value="1600">0.5x</option>
+            <option value="800" selected>1x</option>
+            <option value="400">2x</option>
+          </select>
+        </div>
+        <div class="replay-info" id="replayInfo">第 0 / 0 步</div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn primary" id="replayClose">关闭回放</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== 我的战绩弹窗 ===================== -->
+  <div id="statsModal" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-head"><h2>我的战绩</h2><button class="x" data-close="statsModal">×</button></div>
+      <div id="statsBody"></div>
+      <div class="modal-foot">
+        <button class="btn" id="resetStats">清空战绩</button>
+        <button class="btn primary" data-close="statsModal">好的</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== 轻提示 Toast ===================== -->
+  <div id="toast" class="toast hidden"></div>
+
+  <!-- 加载顺序：引擎 → AI → 界面 -->
+  <script src="js/chess.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/tactics.js"></script>
+  <script src="js/ui.js"></script>
+</body>
+</html>

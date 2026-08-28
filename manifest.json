@@ -1,0 +1,17 @@
+{
+  "name": "国际象棋 · Chess",
+  "short_name": "Chess",
+  "description": "本地国际象棋:人机对战、AI 斗蛐蛐、战术训练、复盘分析",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#1f1a24",
+  "theme_color": "#3c3448",
+  "lang": "zh-CN",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
